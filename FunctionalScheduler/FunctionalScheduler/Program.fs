@@ -54,8 +54,8 @@ let isUKHoliday (date: DateTime) =
 
 [<EntryPoint>]
 let main argv =
-    let startDate = new DateTime(2020, 10, 10);
-    let endDate = new DateTime(2020, 10, 20);
+    let startDate = DateTime(2020, 10, 10);
+    let endDate = DateTime(2020, 10, 20);
 
     let schedule = 
         Seq.infiniteSeq (GoForwardDays 1) startDate
@@ -69,8 +69,8 @@ let main argv =
     Console.WriteLine "------"
     Console.WriteLine "Reverse schedule ignore spanish holiday"
 
-    let startDate2 = new DateTime(2020, 12, 20); 
-    let endDate2 = new DateTime(2020, 10, 10);
+    let startDate2 = DateTime(2020, 12, 20); 
+    let endDate2 = DateTime(2020, 10, 10);
 
     let schedule2 = 
         Seq.infiniteSeq (GoForwardWeeks -1) startDate2
