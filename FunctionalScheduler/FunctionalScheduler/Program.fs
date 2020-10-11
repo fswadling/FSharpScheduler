@@ -1,31 +1,44 @@
 ﻿// Learn more about F# at http://fsharp.org
 
 open System
+open System.Collections.Generic
 
-let duplicateHead xs = seq { 
-    yield Seq.head xs; 
-    yield! xs 
-    }
+module Seq =
+    let doWhile predicate (s: seq<_>) = 
+        let rec loop (en:IEnumerator<_>) = seq {
+          if en.MoveNext() then
+            yield en.Current
+            if predicate en.Current then
+              yield! loop en }
+
+        seq { use en = s.GetEnumerator()
+              yield! loop en }
+
+    let infiniteSeq getNext start =
+        seq {
+            let mutable element = start
+            while true do
+                yield element
+                element <- (getNext element)
+        }
 
 let (<||>) f g = (fun x -> f x || g x)
 
-let GoBackDays (startDate: DateTime) (nDays:int) index =
-    startDate.AddDays(float (index * -nDays));
+let GoForwardDays nDays (startDate: DateTime) =
+    startDate.AddDays(float nDays)
 
-let GetNextDay (startDate: DateTime) index =
-    startDate.AddDays(float index)
+let GoForwardWeeks nWeeks (startDate: DateTime)  =
+    startDate.AddDays(float (nWeeks * 7))
 
-let GetNextWeek (startDate: DateTime) index =
-    startDate.AddDays(float (index * 7))
+let GoForwardMonths nMonths (startDate: DateTime) =
+    startDate.AddMonths(nMonths)
 
-let GetNextMonth (startDate: DateTime) index =
-    startDate.AddMonths(index)
-
-let rec adjustDateForUnavailablity dateIsUnavailable (date: DateTime) =
-    if dateIsUnavailable(date) then
-        adjustDateForUnavailablity dateIsUnavailable (date.AddDays(float 1))
+let rec adjustInvalidValue isValueInvalid adjustValue value =
+    if isValueInvalid value then
+        let newValue = adjustValue value
+        adjustInvalidValue isValueInvalid adjustValue newValue
     else
-        date
+        value
 
 let isWeekend (date: DateTime) = 
     date.DayOfWeek = DayOfWeek.Saturday || date.DayOfWeek = DayOfWeek.Sunday
@@ -39,51 +52,33 @@ let isUSHoliday (date: DateTime) =
 let isUKHoliday (date: DateTime) =
     date.Day = 14 && date.Month = 10
 
-let BaseSchedule nextDateFn adjustDateFn =
-    Seq.initInfinite nextDateFn
-        |> Seq.map adjustDateFn
-        |> Seq.distinct
-
-let NoOutlierSchedule (nextDateFn: int -> DateTime) includeDateFn adjustDateFn =
-    BaseSchedule nextDateFn adjustDateFn 
-        |> Seq.takeWhile includeDateFn
-
-let AllowOutlierSchedule (nextDateFn: int -> DateTime) includeDateFn adjustDateFn =
-    let internalInclude (prevDate, _) =
-        includeDateFn prevDate
-    BaseSchedule nextDateFn adjustDateFn
-        |> duplicateHead
-        |> Seq.pairwise
-        |> Seq.takeWhile internalInclude
-        |> Seq.map (fun (_, next) -> next)
-
 [<EntryPoint>]
 let main argv =
     let startDate = new DateTime(2020, 10, 10);
     let endDate = new DateTime(2020, 10, 20);
-    let dateFn = GetNextDay startDate
-    let includeFn = (>=) endDate
-    let isDateUnavailable = isWeekend <||> isUKHoliday <||> isSpanishHoliday <||> isUSHoliday
-    let adjustDateFn = adjustDateForUnavailablity isDateUnavailable
-    let seq = NoOutlierSchedule dateFn includeFn adjustDateFn
 
-    for date in seq do
+    let schedule = 
+        Seq.infiniteSeq (GoForwardDays 1) startDate
+            |> Seq.map (adjustInvalidValue (isWeekend <||> isUKHoliday <||> isSpanishHoliday <||> isUSHoliday) (GoForwardDays 1))
+            |> Seq.distinct
+            |> Seq.takeWhile ((>=) endDate)
+
+    for date in schedule do
         Console.WriteLine date
 
     Console.WriteLine "------"
-    Console.WriteLine "Reverse schedule ignore US holiday"
+    Console.WriteLine "Reverse schedule ignore spanish holiday"
 
-    let startDate2 = new DateTime(2020, 10, 10);
-    let endDate2 = new DateTime(2020, 12, 20);
-    
-    let dateFn2 = GoBackDays endDate2 7
-    let includeFn2 = (<=) startDate2
-    let isDateUnavailable2 = isWeekend <||> isUKHoliday <||> isUSHoliday
-    let adjustDateFn2 = adjustDateForUnavailablity isDateUnavailable2
+    let startDate2 = new DateTime(2020, 12, 20); 
+    let endDate2 = new DateTime(2020, 10, 10);
 
-    let seq2 = AllowOutlierSchedule dateFn2 includeFn2 adjustDateFn2
+    let schedule2 = 
+        Seq.infiniteSeq (GoForwardWeeks -1) startDate2
+            |> Seq.map (adjustInvalidValue (isWeekend <||> isUKHoliday <||> isUSHoliday) (GoForwardDays -1))
+            |> Seq.distinct
+            |> Seq.doWhile ((<=) endDate2)
 
-    for date in seq2 do
+    for date in schedule2 do
         Console.WriteLine date
 
     0 // return an integer exit code
